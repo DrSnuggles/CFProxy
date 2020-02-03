@@ -1,0 +1,18 @@
+{
+  "name": "CFZipProxy",
+  "version": "3",
+  "description": "Cloudfare worker proxy unzipping resources",
+  "main": "index.js",
+  "scripts": {
+    "build": "webpack src/index.js"
+  },
+  "author": "DrSnuggles",
+  "license": "MIT",
+  "devDependencies": {
+    "webpack": "^4.41.5",
+    "webpack-cli": "^3.3.10"
+  },
+  "dependencies": {
+    "jszip": "^3.2.2"
+  }
+}
