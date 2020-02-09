@@ -6,11 +6,16 @@ Started from the need to have own proxy to circumvent problems caused by CORS an
 ## Build
 npm install --save-dev webpack
 
-npm install --save jszip
+npm install --save uzip
 
 npm run build
 
 ## History
-  - v3: Unzips foudn resources
-  - v2: Following temp and perm redirections
-  - v1: Simple
+  - v5: Unzip using UZIP
+  - v4: Try unzip using JSZip
+  - v3: Try to unzip use imaya
+  - v2: Following 301 perm moved status and try to unzip use imaya
+  - v1: Simple proxy following 302 temp. moved status
+
+## Licenses
+UZIP is licensed under MIT, so do i

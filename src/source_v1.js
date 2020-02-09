@@ -1,0 +1,65 @@
+/*
+Simple Proxy by DrSnuggles using a cloudflare worker
+*/
+
+//
+// vars
+//
+var debug = true
+
+//
+// listener
+//
+addEventListener('fetch', event => {
+  if (debug) console.clear()
+  event.respondWith( handleRequest(event.request) )
+})
+
+//
+// answerer
+//
+async function handleRequest(req) {
+  var src = req.headers.get("Origin")
+  src = (typeof src !== "string") ? "" : src
+  src = src.toLowerCase()
+
+
+  // Make the headers mutable by re-constructing the Request.
+  req = new Request( req )
+  req.headers.set('Access-Control-Allow-Origin', '*') // not really needed
+  req.headers.set("Redirect", "Follow")
+
+  var dst = new URL(req.url)
+  dst = unescape( unescape( dst.search.substr(1) ) )
+  if (dst.length < 3) return nope()
+
+  // filter... the overlay <img src="..." has null
+  if (debug || src.indexOf("https://drsnuggles.github.io") === 0 || src.indexOf("https://mstest.net") === 0) {
+    // allowed
+    var res = await fetch(dst, req)
+
+    // error handling
+    switch (res.status) {
+      case 301: // temp. moved => follow
+      case 302: // temp. moved => follow
+        if (debug) console.log("manual follow 301/203")
+        dst = res.headers.get("location")
+        res = await fetch(dst, req)
+        break
+      default:
+        break
+    }
+
+    // Make the headers mutable by re-constructing the Response.
+    var meta = {"status": 200, "statusText": "OK", headers: {"Access-Control-Allow-Origin": "*"} }
+    res = new Response(res.body, meta)
+    return res
+  } else {
+    // not allowed
+    return nope()
+  }
+}
+
+async function nope(){
+  return new Response("The use of this proxy is restricted",{status: 403, statusText: 'Forbidden', headers: {"Content-Type": "text/html"}})
+}
