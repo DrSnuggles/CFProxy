@@ -5,64 +5,64 @@ I was first thinking of doing that client side
 but since Vectrexer requested this feature for URLs i will do here
 and deliver depacked content to vecx
 
+Since i do not know if we have a valid rom/bios/png/...
+i will try to decrunch first, sorry cloudflare...
+
 Test:
 Oregon Trail: https://docs.google.com/uc?export=download&id=1zBvCN6Ap9723LGDcXNonXFppOsaW2Mu4
 MineStorm.ZIP: https://docs.google.com/uc?export=download&id=1WcrVSDBkcIsfVZFnMRdJFxXMLdNTzW1r
-Moskwa: http://www.futurevector.eu/Moskwa-download_files/Moskwa_demo.zip
+Protector/Y*A*S*I: http://www.herbs64.plus.com/files/py050712.zip
 */
 
 //
 // Vars
 //
-var debug = false
+var debug = true
 var maxSize = 256 * 1024 // 256kB
-var req // request
-var src // requesting source
-var dst // final destination
-var Zip = require('uzip')
+var JSZip = require('jszip');
 
 //
 // Listener
 //
 addEventListener('fetch', event => {
   if (debug) console.clear()
-  req = event.request
-  event.respondWith( handleRequest() )
+  event.respondWith( handleRequest(event.request) )
 })
 
 //
 // Answerer
 //
-async function handleRequest() {
-  if (debug) console.log("handleRequest", req)
+async function handleRequest(req) {
+  if (debug) {
+    console.log(req)
+  }
 
-  src = req.headers.get("Origin")
+  var src = req.headers.get("Origin")
   src = (typeof src !== "string") ? "" : src
   src = src.toLowerCase()
 
   // Make the headers mutable by re-constructing the Request.
-  req = new Request( req )
-  req.headers.set('Access-Control-Allow-Origin', '*')
-  req.headers.set('Redirect', 'Follow')
+  //req = new Request( req )
+  //req.headers.set('Access-Control-Allow-Origin', '*')
 
-  dst = new URL(req.url)
+  var dst = new URL(req.url)
   dst = unescape( unescape( dst.search.substr(1) ) )
-  if (dst.length === 0) return nope(src) // no dst set
+  if (dst.length === 0) return nope(src, dst) // no dst set
 
   // filter... the overlay <img src="..." has null
-  if (debug || src.indexOf("https://drsnuggles.github.io") === 0 || src.indexOf("https://mstest.net") === 0) {
+  if (1===1 || src.indexOf("https://drsnuggles.github.io") === 0 || src.indexOf("https://mstest.net") === 0) {
 
-    return recFetch()
+    return recFetch(dst, req)
     .then(res => {
       if (debug) console.log(res)
       //return new Response(res)
-      return decrunchTry(res)
+      return decrunchTry(res, src, dst)
       .then(res => {
         if (debug) console.log("after dec: ", res)
         if (res) {
           return res
         } else {
-          return nope()
+          return nope(src, dst)
         }
 
       })
@@ -73,14 +73,14 @@ async function handleRequest() {
 
   } else {
     // not allowed
-    return nope()
+    return nope(src, dst)
   }
 }
 
 //
 // recursive Fetch
 //
-async function recFetch() {
+async function recFetch(dst, req) {
   if (debug) console.log("recFetch", dst, req)
   return fetch(dst, req)
   .then(res => {
@@ -91,7 +91,7 @@ async function recFetch() {
       case 302: // temp. moved => follow
         dst = res.headers.get("location")
         //if (debug) console.log(dst)
-        return recFetch()
+        return recFetch(dst, req)
         .then(res => {
           //if (debug) console.log(res)
           return res
@@ -119,9 +119,9 @@ async function recFetch() {
 //
 // negative Response
 //
-async function nope(){
+async function nope(src, dst){
   if (debug) {
-    console.log("nope")
+    if (debug) console.log("nope")
     return new Response("The use of this proxy is restricted",{status: 403, statusText: 'Forbidden', headers: {"Content-Type": "text/html", "src": src, "dst": dst}})
   } else {
     return new Response("The use of this proxy is restricted",{status: 403, statusText: 'Forbidden', headers: {"Content-Type": "text/html"}})
@@ -131,9 +131,9 @@ async function nope(){
 //
 // decrunch Try
 //
-async function decrunchTry(res){
+async function decrunchTry(res, src, dst){
   if (debug) console.log("decrunchTry")
-  if (!res) return nope()
+  if (!res) return nope(src, dst)
   if (debug) console.log("decrunchTry2")
   var zipped = false
 
@@ -171,42 +171,90 @@ async function decrunchTry(res){
   // identify known formats
   //if (debug) console.log(arr)
   if (!zipped) {
-
-    // skip here and re read
-    var res = await fetch(dst, req)
-    var meta = {"status": 200, "statusText": "OK", headers: {"Access-Control-Allow-Origin": "*"} }
-    res = new Response(res.body, meta)
-    return res
-
-    /* did not work very well
     var td = new TextDecoder()
     var stream = td.decode(buf) // now without await, we waited long enough....
-    var meta = {"status": 200, "statusText": "OK", headers: {"Access-Control-Allow-Origin": "*"} }
+    var meta = {"status": res.status, "statusText": res.statusText }
     var res = new Response(stream, meta)
     return res
-    */
   }
 
   // depack / inflate / decrunch / unzip
   if (debug) console.log("OK we send it to unzip")
-  var zip = Zip.parse(buf)
-  var binFile //= Object.keys(zip)[0]
-  // search for .bin .rom .vec files
-  for (let i in zip) {
-    if (debug) console.log("i: ", i)
-    var tst = i.toLowerCase()
-    if (tst.indexOf("__macosx") === -1) {
-      if (tst.indexOf(".bin") !== -1 || tst.indexOf(".rom") !== -1 || tst.indexOf(".vec") !== -1) {
-        binFile = i
-        break // just
-      }
-    }
-  }
-  if (debug) console.log("will use this file:", binFile)
-  var data = zip[binFile]
-//  if (data.length > maxSize) return nope(src, dst)
+  return JSZip.loadAsync(buf)
+  .then(zip => {
+    return decFile(zip)
+    .then(stream => {
+      console.log("after decFile stream:", stream)
+      var meta = {"status": 200, "statusText": "OK" }
+      return new Response(stream, meta)
+    })
+  })
+  .then(ret => {
+    // this also handled external
+    console.log("after loadAsync:", ret)
+    return ret
+  })
+}
 
-  var meta = {"status": 200, "statusText": "OK", headers: {"Access-Control-Allow-Origin": "*"} }
-  return new Response(data, meta)
+async function decFile(zip) {
+  if (debug) console.log("decFile", zip)
+  //object.keys(zip.files).forEach(function(filename){
+  //for (var i in zip.files) {
+  var i = Object.keys(zip.files)[0] // firstFile
+  if (debug) console.log("Decrunch single file", zip.files[i]);
 
+
+  var data = await zip.files[i].async("arraybuffer")
+  if (debug) console.log("async")
+
+  // Create an identity TransformStream (a.k.a. a pipe).
+  // The readable side will become our new response body.
+  let { readable, writable } = new TransformStream()
+
+  // Start pumping the body. NOTE: No await!
+  streamBody(zip.files[i].async("arraybuffer"), writable)
+
+  // ... and deliver our Response while that's running.
+  //return new Response(readable, response)
+  return readable
+
+  // now using ArrayBuffer as return
+  //var data = await zip.files[i].async("arraybuffer")
+  //console.log(data)
+  //return data
+  /*
+  .then(data => {
+    if (debug) console.log("Decrunched single file");
+    if (debug) console.log(data)
+    var td = new TextDecoder()
+    var stream = td.decode(data) // now without await, we waited long enough....
+    var meta = {"status": 200, "statusText": "OK" }
+    var res = new Response(stream, meta)
+    //
+    // Exit
+    //
+    if (debug) console.log(stream)
+    return res
+  })
+  .catch(e => {
+    console.error("we catched a zip error.. so this file wasn't zipped", e)
+    var td = new TextDecoder()
+    var stream = td.decode(buf) // now without await, we waited long enough....
+    var meta = {"status": 200, "statusText": "OK" }
+    var res = new Response(stream, meta)
+    //
+    // Exit
+    //
+    if (debug) console.log(stream)
+    return res
+  })
+  */
+}
+
+// https://developers.cloudflare.com/workers/archive/recipes/streaming-responses/
+async function streamBody(readable, writable) {
+  // This function will continue executing after `fetchAndStream()`
+  // returns its response.
+  if (debug) console.log("streamBody:", readable, writable)
+  return readable.pipeTo(writable)
 }
