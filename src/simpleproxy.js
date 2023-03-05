@@ -53,12 +53,21 @@ async function handleRequest(req) {
         }
         res = await fetch(dst, req)
         break
+      /* that didn't solve the problem
+      case 502: // thats TLS errors and more
+        console.log('try again with', req.url.split("?")[1])
+        res = await fetch(req.url.split("?")[1], req)
+        break;
+      */
       default:
         break
     }
 
     // Make the headers mutable by re-constructing the Response.
-    var meta = {"status": 200, "statusText": "OK", headers: {"Access-Control-Allow-Origin": "*"} }
+    var meta = {"status": 200, "statusText": "OK", headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Content-Type": res.headers.get("Content-Type"),
+      } }
     res = new Response(res.body, meta)
     return res
   } else {
